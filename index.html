@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>分组抽签 · 11组 × 5人</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: linear-gradient(160deg, #1b1035 0%, #2d1b52 45%, #16213e 100%);
+    color: #f2f0ff;
+    min-height: 100vh;
+    padding: 20px 16px 48px;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+
+  h1 {
+    font-size: 26px; text-align: center; margin: 12px 0 6px;
+    letter-spacing: 2px; font-weight: 700;
+  }
+  .sub { text-align: center; font-size: 13px; color: #a99fd4; margin-bottom: 22px; }
+
+  .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 18px;
+    backdrop-filter: blur(8px);
+  }
+
+  label { display: block; font-size: 13px; color: #bfb6e8; margin-bottom: 8px; }
+  input[type=text] {
+    width: 100%; padding: 14px 16px; font-size: 17px;
+    border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.25); color: #fff; outline: none;
+  }
+  input[type=text]:focus { border-color: #8d7bff; box-shadow: 0 0 0 3px rgba(141,123,255,0.2); }
+
+  button.primary {
+    width: 100%; margin-top: 14px; padding: 16px;
+    font-size: 18px; font-weight: 700; letter-spacing: 4px;
+    border: none; border-radius: 14px; cursor: pointer; color: #fff;
+    background: linear-gradient(135deg, #ff5f9e, #a24bff 60%, #5b6bff);
+    box-shadow: 0 8px 24px rgba(162,75,255,0.35);
+    transition: transform .12s, opacity .2s;
+  }
+  button.primary:active { transform: scale(0.97); }
+  button.primary:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+  /* 抽签滚动区 */
+  .slot {
+    margin-top: 18px; height: 132px; border-radius: 16px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; position: relative;
+  }
+  .slot .num {
+    font-size: 62px; font-weight: 800;
+    background: linear-gradient(135deg, #ffd86b, #ff7ac6, #7ab8ff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    line-height: 1;
+  }
+  .slot .hint { position: absolute; bottom: 12px; font-size: 12px; color: #9d94c9; }
+  .slot.rolling .num { animation: shake .09s infinite; }
+  @keyframes shake { 0%{transform:translateY(-4px)} 50%{transform:translateY(4px)} 100%{transform:translateY(-4px)} }
+
+  .result-big {
+    text-align: center; padding: 8px 0 4px;
+  }
+  .result-big .who { font-size: 15px; color: #cfc6f7; margin-bottom: 6px; }
+  .result-big .grp {
+    font-size: 54px; font-weight: 800; line-height: 1.1;
+    background: linear-gradient(135deg, #ffd86b, #ff7ac6);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .result-big .tip { font-size: 13px; color: #a99fd4; margin-top: 8px; }
+
+  .msg { margin-top: 12px; font-size: 14px; text-align: center; min-height: 20px; }
+  .msg.err { color: #ff8ba0; }
+  .msg.ok  { color: #7ee6b0; }
+
+  /* 分组看板 */
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  .board-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; }
+  .board-head .prog { font-size: 13px; color: #a99fd4; }
+
+  .groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; }
+  .g {
+    background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 10px 12px;
+  }
+  .g.full { border-color: rgba(126,230,176,0.45); background: rgba(126,230,176,0.08); }
+  .g.mine { border-color: #ffd86b; box-shadow: 0 0 0 2px rgba(255,216,107,0.25); }
+  .g .gt { display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700; margin-bottom:6px; }
+  .g .cnt { font-size: 11px; font-weight: 500; color: #a99fd4; }
+  .g.full .cnt { color: #7ee6b0; }
+  .g ul { list-style: none; margin: 0; padding: 0; }
+  .g li { font-size: 13px; padding: 2px 0; color: #e6e1ff; }
+  .g li.empty { color: #6d648f; font-style: italic; }
+
+  .foot { text-align: center; font-size: 12px; color: #7d7499; margin-top: 26px; line-height: 1.7; }
+  .refresh { color:#a99fd4; text-decoration: underline; cursor: pointer; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>分组抽签</h1>
+  <div class="sub">11 个组 · 每组 5 人 · 一人只能抽一次</div>
+
+  <!-- 抽签卡 -->
+  <div class="card" id="drawCard">
+    <div id="formArea">
+      <label>请输入你的飞书名字</label>
+      <input type="text" id="nameInput" placeholder="例如：张三" autocomplete="off" maxlength="20">
+      <button class="primary" id="drawBtn">开 始 抽 签</button>
+      <div class="slot" id="slot">
+        <div class="num" id="slotNum">?</div>
+        <div class="hint" id="slotHint">点上面按钮，看看你的运气~</div>
+      </div>
+    </div>
+
+    <div id="resultArea" style="display:none">
+      <div class="result-big">
+        <div class="who" id="rWho"></div>
+        <div class="grp" id="rGrp"></div>
+        <div class="tip" id="rTip">已记录，你不能再抽了哦</div>
+      </div>
+    </div>
+
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <!-- 看板 -->
+  <div class="card">
+    <div class="board-head">
+      <h2>分组情况</h2>
+      <span class="prog" id="prog">加载中…</span>
+    </div>
+    <div class="groups" id="groups"></div>
+  </div>
+
+  <div class="foot">
+    结果实时同步，所有人看到的都一样<br>
+    <span class="refresh" id="refreshBtn">手动刷新</span>
+  </div>
+
+</div>
+
+<script>
+// ====== 配置 ======
+const SUPABASE_URL = "https://hdcdutjlkwfaqjgewaid.supabase.co";
+const SUPABASE_KEY = "sb_publishable_27LcCyW8osvSIhV5wkSUIA_FdDqY3C6";
+const GROUP_COUNT  = 11;   // 组数
+const GROUP_SIZE   = 5;    // 每组人数
+const REST = SUPABASE_URL + "/rest/v1/draws";
+const HEADERS = {
+  "apikey": SUPABASE_KEY,
+  "Authorization": "Bearer " + SUPABASE_KEY,
+  "Content-Type": "application/json"
+};
+
+// ====== DOM ======
+const $ = id => document.getElementById(id);
+const nameInput = $("nameInput"), drawBtn = $("drawBtn"), msg = $("msg");
+const slot = $("slot"), slotNum = $("slotNum"), slotHint = $("slotHint");
+const formArea = $("formArea"), resultArea = $("resultArea");
+
+let allDraws = [];      // [{name, group_no}]
+let myName = localStorage.getItem("lot_my_name") || "";
+let drawing = false;
+
+// ====== 工具 ======
+function setMsg(t, cls){ msg.textContent = t || ""; msg.className = "msg " + (cls||""); }
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+function normName(s){ return (s||"").trim().replace(/\s+/g," "); }
+// 真随机（优先用加密随机源）
+function randInt(n){
+  if (window.crypto && crypto.getRandomValues) {
+    const a = new Uint32Array(1);
+    const limit = Math.floor(0xFFFFFFFF / n) * n;
+    let v;
+    do { crypto.getRandomValues(a); v = a[0]; } while (v >= limit);
+    return v % n;
+  }
+  return Math.floor(Math.random() * n);
+}
+
+// ====== 数据 ======
+async function fetchDraws(){
+  const r = await fetch(REST + "?select=name,group_no&order=created_at.asc", { headers: HEADERS, cache: "no-store" });
+  if (!r.ok) throw new Error("读取失败 " + r.status);
+  allDraws = await r.json();
+  return allDraws;
+}
+
+function countByGroup(){
+  const c = {};
+  for (let i = 1; i <= GROUP_COUNT; i++) c[i] = [];
+  allDraws.forEach(d => { if (c[d.group_no]) c[d.group_no].push(d.name); });
+  return c;
+}
+
+function availableGroups(){
+  const c = countByGroup(), out = [];
+  for (let i = 1; i <= GROUP_COUNT; i++) if (c[i].length < GROUP_SIZE) out.push(i);
+  return out;
+}
+
+function findMine(){
+  if (!myName) return null;
+  return allDraws.find(d => d.name === myName) || null;
+}
+
+// ====== 渲染 ======
+function render(){
+  const c = countByGroup();
+  const total = allDraws.length, cap = GROUP_COUNT * GROUP_SIZE;
+  $("prog").textContent = total + " / " + cap + " 人已抽";
+
+  const mine = findMine();
+  $("groups").innerHTML = Array.from({length: GROUP_COUNT}, (_, i) => {
+    const n = i + 1, mem = c[n], full = mem.length >= GROUP_SIZE;
+    const isMine = mine && mine.group_no === n;
+    const lis = mem.length
+      ? mem.map(x => `<li>${escapeHtml(x)}${x === myName ? " ←你" : ""}</li>`).join("")
+      : `<li class="empty">还没人</li>`;
+    return `<div class="g ${full?"full":""} ${isMine?"mine":""}">
+      <div class="gt"><span>第 ${n} 组</span><span class="cnt">${mem.length}/${GROUP_SIZE}${full?" 满":""}</span></div>
+      <ul>${lis}</ul></div>`;
+  }).join("");
+
+  // 已抽过 → 展示结果
+  if (mine) {
+    formArea.style.display = "none";
+    resultArea.style.display = "";
+    $("rWho").textContent = mine.name;
+    $("rGrp").textContent = "第 " + mine.group_no + " 组";
+  } else {
+    formArea.style.display = "";
+    resultArea.style.display = "none";
+  }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+// ====== 抽签 ======
+async function doDraw(){
+  if (drawing) return;
+  const name = normName(nameInput.value);
+  if (!name) { setMsg("先填一下你的飞书名字呀", "err"); nameInput.focus(); return; }
+  if (name.length < 2) { setMsg("名字太短啦，填全名哦", "err"); return; }
+
+  drawing = true; drawBtn.disabled = true; setMsg("");
+
+  try {
+    await fetchDraws();
+
+    // 重名/已抽检查
+    const exist = allDraws.find(d => d.name === name);
+    if (exist) {
+      myName = name; localStorage.setItem("lot_my_name", name);
+      render();
+      setMsg("你已经抽过啦，分在第 " + exist.group_no + " 组", "ok");
+      return;
+    }
+
+    let avail = availableGroups();
+    if (!avail.length) { setMsg("所有组都满了，抽签已结束", "err"); return; }
+
+    // 滚动动画
+    slot.classList.add("rolling");
+    slotHint.textContent = "抽签中…";
+    const spinEnd = Date.now() + 1400;
+    while (Date.now() < spinEnd) {
+      slotNum.textContent = randInt(GROUP_COUNT) + 1;
+      await sleep(70);
+    }
+
+    // 真正写入（最多重试 8 次，应对并发抢位）
+    let got = null, lastErr = "";
+    for (let attempt = 0; attempt < 8; attempt++) {
+      if (!avail.length) break;
+      const pick = avail[randInt(avail.length)];
+      const r = await fetch(REST, {
+        method: "POST",
+        headers: Object.assign({}, HEADERS, { "Prefer": "return=representation" }),
+        body: JSON.stringify({ name: name, group_no: pick })
+      });
+      if (r.ok) { got = pick; break; }
+
+      const txt = await r.text();
+      lastErr = txt;
+      if (r.status === 409 || txt.includes("duplicate key")) {
+        // 名字撞了：可能刚好有人同名/自己重复提交
+        await fetchDraws();
+        const e2 = allDraws.find(d => d.name === name);
+        if (e2) {
+          myName = name; localStorage.setItem("lot_my_name", name);
+          slot.classList.remove("rolling");
+          render();
+          setMsg("这个名字已经抽过了，在第 " + e2.group_no + " 组", "ok");
+          return;
+        }
+        break;
+      }
+      if (txt.includes("GROUP_FULL")) {
+        // 这组被抢满了 → 刷新可用组再试
+        await fetchDraws();
+        avail = availableGroups();
+        continue;
+      }
+      break; // 其它错误不重试
+    }
+
+    slot.classList.remove("rolling");
+
+    if (got === null) {
+      slotHint.textContent = "点上面按钮，看看你的运气~";
+      setMsg("抽签没成功，再点一次试试" + (lastErr ? "（" + lastErr.slice(0,80) + "）" : ""), "err");
+      return;
+    }
+
+    // 揭晓
+    myName = name;
+    localStorage.setItem("lot_my_name", name);
+    slotNum.textContent = got;
+    slotHint.textContent = "";
+    await fetchDraws();
+    render();
+    setMsg("抽到了！你在第 " + got + " 组", "ok");
+
+  } catch (e) {
+    slot.classList.remove("rolling");
+    setMsg("出错了：" + e.message, "err");
+  } finally {
+    drawing = false; drawBtn.disabled = false;
+  }
+}
+
+// ====== 事件 & 轮询 ======
+drawBtn.addEventListener("click", doDraw);
+nameInput.addEventListener("keydown", e => { if (e.key === "Enter") doDraw(); });
+$("refreshBtn").addEventListener("click", async () => {
+  setMsg("刷新中…");
+  try { await fetchDraws(); render(); setMsg("已是最新", "ok"); }
+  catch(e){ setMsg("刷新失败：" + e.message, "err"); }
+});
+
+(async function init(){
+  if (myName) nameInput.value = myName;
+  try { await fetchDraws(); render(); }
+  catch(e){ setMsg("连接数据库失败：" + e.message, "err"); }
+  // 每 4 秒同步一次
+  setInterval(async () => {
+    if (drawing) return;
+    try { await fetchDraws(); render(); } catch(e) {}
+  }, 4000);
+})();
+</script>
+</body>
+</html>
