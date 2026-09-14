@@ -61,6 +61,14 @@
   .win-btn:hover { background:rgba(162,75,255,0.45); }
   .win-btn.hidden { display:none; }
 
+  /* 轮空 */
+  .match.bye { border-color: rgba(255,216,107,0.5); background: rgba(255,216,107,0.07); }
+  .match.bye .mid { color:#ffd86b; }
+  .bye-note { font-size:10px; color:#c8b06a; text-align:center; padding:5px 6px; }
+
+  .rr-src { font-size:12px; color:#bfb6e8; margin-bottom:10px; padding-left:8px; }
+  .rr-src span { display:inline-block; margin-right:4px; }
+
   /* 三队循环 */
   .rr-wrap { display:flex; flex-wrap:wrap; gap:14px; }
   .rr-standings {
@@ -278,7 +286,17 @@ function render(){
   html += `<div class="scroll"><div class="bracket">`;
   html += colHtml("第一轮", ["WB1-1","WB1-2","WB1-3","WB1-4","WB1-5","WB1-6"]);
   html += colHtml("第二轮", ["WB2-1","WB2-2","WB2-3"]);
-  html += colHtml("第三轮", ["WB3-1"]);
+  // 第三轮：3支队 -> 1场比赛 + 1支轮空队（显式画出来）
+  const byeG = (RESULTS["WB2-3"] && RESULTS["WB2-3"].winner!=null) ? RESULTS["WB2-3"].winner : null;
+  const m31 = MATCHES.find(x=>x.id==="WB3-1");
+  html += `<div class="col"><div class="col-title">第三轮</div>`;
+  html += matchHtml(m31, resolveSlot(m31.a), resolveSlot(m31.b));
+  html += `<div class="match bye"><div class="mid">轮空 BYE</div>`;
+  html += (byeG!=null
+    ? `<div class="team win" data-group="${byeG}"><span class="nm">${esc(teamName(byeG))}</span><span class="sc">✓</span></div>`
+    : `<div class="team tbd"><span class="nm">待定（第二轮第3场胜者）</span><span class="sc">-</span></div>`);
+  html += `<div class="bye-note">本轮轮空 · 直接晋级四强</div></div>`;
+  html += `</div>`;
   html += `</div></div>`;
 
   // 败者组
@@ -294,6 +312,10 @@ function render(){
   // 四强三循环
   html += `<div class="section-label rr">四强 · 三队循环赛</div>`;
   const semis = semiTeams();
+  const srcTxt = ["胜者组轮空晋级","胜者组第三轮胜者","败者组王者"];
+  html += `<div class="rr-src">三强来路：` + semis.map((g,i)=>
+    `<span>${srcTxt[i]} = ${g!=null?esc(teamName(g)):"待定"}</span>`
+  ).join(" · ") + `</div>`;
   html += `<div class="scroll"><div class="rr-wrap">`;
   // 三场
   html += `<div class="col">` + RR.map(m=>{
