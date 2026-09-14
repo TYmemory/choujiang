@@ -59,6 +59,8 @@
   .team.draggable:active { cursor:grabbing; }
   .team.dragging { opacity:.4; }
   .team.dropok { outline:2px dashed #5bc8ff; outline-offset:-2px; background:rgba(91,200,255,0.15); }
+  .team.picked { outline:2px solid #ffd86b; outline-offset:-2px; background:rgba(255,216,107,0.18); }
+  body.movemode .team[data-slot] { cursor:pointer; }
 
   .win-btn {
     display:block; text-align:center; font-size:11px; padding:5px;
@@ -103,6 +105,7 @@
   <div class="toolbar">
     <span id="roleLabel">观众模式</span>
     <span class="role" id="roleToggle">切换裁判模式</span>
+    <span class="role" id="moveToggle" style="display:none">搬移模式：关</span>
     <span class="role" id="refreshBtn">刷新</span>
     <span class="role" id="clearOvBtn" style="display:none">清除手动调位</span>
   </div>
@@ -183,6 +186,8 @@ const FINAL_ID = "FINAL";
 // ===== 状态 =====
 let TEAMS = {}, RESULTS = {}, MEMBERS = {}, OV = {};
 let isJudge = false;
+let moveMode = false;    // 搬移模式（触屏友好）
+let moveSrc = null;      // 选中的源 slotKey
 
 const $ = id => document.getElementById(id);
 function setStatus(t,c){ const s=$("status"); s.textContent=t||""; s.className="status "+(c||""); }
@@ -245,10 +250,11 @@ function matchHtml(mid, title){
   function row(g, side){
     const k = mid+":"+side;
     const ovCls = (OV[k]!=null) ? " ov" : "";
-    const dragCls = isJudge ? " draggable" : "";
-    if(g==null) return `<div class="team tbd${dragCls}" data-slot="${k}"><span class="nm">待定</span><span class="sc">-</span></div>`;
+    const selCls = (moveSrc===k) ? " picked" : "";
+    const dragCls = (isJudge && !moveMode) ? " draggable" : "";
+    if(g==null) return `<div class="team tbd${dragCls}${selCls}" data-slot="${k}"><span class="nm">待定</span><span class="sc">-</span></div>`;
     const cls = win!=null ? (win===g?"win":"lose") : "";
-    return `<div class="team ${cls}${ovCls}${dragCls}" data-slot="${k}" data-group="${g}" ${isJudge?'draggable="true"':''}>
+    return `<div class="team ${cls}${ovCls}${dragCls}${selCls}" data-slot="${k}" data-group="${g}" ${(isJudge&&!moveMode)?'draggable="true"':''}>
       <span class="nm">${esc(teamName(g))}</span><span class="sc">${win===g?"✓":""}</span></div>`;
   }
   let btns="";
@@ -377,8 +383,38 @@ async function recordWin(mid, winner){
 document.addEventListener("click", async e=>{
   const wb = e.target.closest(".win-btn");
   if(wb){ await recordWin(wb.dataset.mid, parseInt(wb.dataset.win,10)); return; }
+
   const tm = e.target.closest(".team");
-  if(tm && tm.dataset.group){ openTeam(parseInt(tm.dataset.group,10)); return; }
+  if(!tm) return;
+
+  // 搬移模式：第一下选中(必须有队伍)，第二下放到目标位
+  if(isJudge && moveMode && tm.dataset.slot){
+    const k = tm.dataset.slot;
+    if(moveSrc===null){
+      if(!tm.dataset.group){ setStatus("请先点一个有队伍的格子","err"); return; }
+      moveSrc = k;
+      setStatus("已选中 "+teamName(parseInt(tm.dataset.group,10))+"，再点目标位置放下（点自己取消）","ok");
+      render(); return;
+    }
+    if(moveSrc===k){ moveSrc=null; setStatus("已取消选择"); render(); return; }
+    const srcG = OV[moveSrc]!=null ? OV[moveSrc] : slotTeam(moveSrc.split(":")[0], moveSrc.split(":")[1]);
+    if(srcG==null){ moveSrc=null; setStatus("源位置没队伍了","err"); render(); return; }
+    moveSrc = null;
+    await setOverride(k, srcG);
+    return;
+  }
+
+  // 普通模式：点队伍看详情
+  if(tm.dataset.group){ openTeam(parseInt(tm.dataset.group,10)); return; }
+});
+
+// 搬移模式开关
+$("moveToggle").addEventListener("click", ()=>{
+  moveMode = !moveMode; moveSrc = null;
+  $("moveToggle").textContent = "搬移模式：" + (moveMode?"开":"关");
+  document.body.classList.toggle("movemode", moveMode);
+  setStatus(moveMode ? "搬移模式：点一个队伍，再点目标位置即可换位（手机也能用）" : "搬移模式已关闭", moveMode?"ok":"");
+  render();
 });
 
 // ===== 队伍弹窗 =====
@@ -416,9 +452,11 @@ $("roleToggle").addEventListener("click", ()=>{
   else if(pin!=null){ setStatus("密码不对哦","err"); }
 });
 function updateRole(){
-  $("roleLabel").textContent = isJudge ? "裁判模式（可记分/拖动）" : "观众模式";
+  $("roleLabel").textContent = isJudge ? "裁判模式（可记分/搬移）" : "观众模式";
   $("roleToggle").textContent = isJudge ? "退出裁判模式" : "切换裁判模式";
   $("clearOvBtn").style.display = isJudge ? "" : "none";
+  $("moveToggle").style.display = isJudge ? "" : "none";
+  if(!isJudge){ moveMode=false; moveSrc=null; document.body.classList.remove("movemode"); $("moveToggle").textContent="搬移模式：关"; }
 }
 
 // ===== 数据 =====
