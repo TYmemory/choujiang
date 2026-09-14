@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>比赛对战图 · 双败赛制 · 12队</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: linear-gradient(160deg, #0f1024 0%, #1c1540 45%, #101a30 100%);
+    color: #f2f0ff; min-height: 100vh; padding: 16px 12px 60px;
+  }
+  h1 { font-size: 24px; text-align: center; margin: 8px 0 4px; letter-spacing: 2px; }
+  .sub { text-align: center; font-size: 12px; color: #9d94c9; margin-bottom: 6px; }
+  .toolbar { text-align:center; margin-bottom: 14px; font-size:12px; color:#a99fd4; }
+  .toolbar .role { cursor:pointer; text-decoration:underline; color:#ffd86b; }
+  .status { text-align:center; font-size:12px; min-height:16px; margin-bottom:8px; }
+  .status.err { color:#ff8ba0; } .status.ok { color:#7ee6b0; }
+
+  .scroll { overflow-x:auto; padding-bottom:12px; -webkit-overflow-scrolling:touch; }
+  .bracket { display:flex; gap:26px; min-width:max-content; padding: 4px 8px; }
+  .col { display:flex; flex-direction:column; justify-content:center; gap:14px; min-width:190px; }
+  .col-title { font-size:12px; font-weight:700; color:#bfb6e8; text-align:center; margin-bottom:2px; letter-spacing:1px; }
+
+  .section-label {
+    margin: 22px 0 6px; font-size:14px; font-weight:700; letter-spacing:2px;
+    padding-left:8px; border-left:3px solid #a24bff; color:#e6e1ff;
+  }
+  .section-label.lb { border-color:#ff5f9e; }
+  .section-label.rr { border-color:#ffd86b; }
+  .section-label.final { border-color:#7ee6b0; }
+
+  /* 一场比赛 */
+  .match {
+    background: rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+    border-radius:10px; overflow:hidden; width:190px;
+  }
+  .match .mid { font-size:10px; color:#8078a8; padding:3px 8px 0; }
+  .team {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 10px; cursor:pointer; border-top:1px solid rgba(255,255,255,0.06);
+    font-size:14px; transition:background .15s;
+  }
+  .team:first-of-type { border-top:none; }
+  .team:hover { background: rgba(255,255,255,0.08); }
+  .team .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; }
+  .team .sc { font-weight:700; color:#ffd86b; min-width:20px; text-align:right; }
+  .team.win { background: rgba(126,230,176,0.14); }
+  .team.win .nm { color:#7ee6b0; font-weight:700; }
+  .team.lose { opacity:.5; }
+  .team.tbd .nm { color:#6d648f; font-style:italic; }
+  .team.empty { color:#5a527a; }
+
+  .win-btn {
+    display:block; text-align:center; font-size:11px; padding:5px;
+    background:rgba(162,75,255,0.25); color:#e6d9ff; cursor:pointer; user-select:none;
+    border-top:1px solid rgba(255,255,255,0.08);
+  }
+  .win-btn:hover { background:rgba(162,75,255,0.45); }
+  .win-btn.hidden { display:none; }
+
+  /* 三队循环 */
+  .rr-wrap { display:flex; flex-wrap:wrap; gap:14px; }
+  .rr-standings {
+    background:rgba(255,216,107,0.06); border:1px solid rgba(255,216,107,0.3);
+    border-radius:12px; padding:12px 14px; min-width:220px;
+  }
+  .rr-standings h3 { margin:0 0 8px; font-size:13px; color:#ffd86b; }
+  .rr-standings table { width:100%; border-collapse:collapse; font-size:13px; }
+  .rr-standings td, .rr-standings th { padding:4px 6px; text-align:left; }
+  .rr-standings th { color:#a99fd4; font-weight:500; font-size:11px; border-bottom:1px solid rgba(255,255,255,0.1); }
+  .rr-standings tr.qual td { color:#7ee6b0; font-weight:700; }
+
+  /* 弹窗 */
+  .overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .overlay.show { display:flex; }
+  .modal {
+    background:#211a3d; border:1px solid rgba(255,255,255,0.15); border-radius:16px;
+    padding:20px; width:100%; max-width:360px;
+  }
+  .modal h2 { margin:0 0 4px; font-size:18px; }
+  .modal .grp { font-size:12px; color:#9d94c9; margin-bottom:14px; }
+  .modal ul { list-style:none; margin:0 0 16px; padding:0; }
+  .modal li { padding:7px 12px; background:rgba(255,255,255,0.05); border-radius:8px; margin-bottom:6px; font-size:15px; }
+  .modal label { font-size:12px; color:#bfb6e8; display:block; margin-bottom:6px; }
+  .modal input {
+    width:100%; padding:11px 12px; font-size:15px; border-radius:10px;
+    border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.3); color:#fff; outline:none;
+  }
+  .modal input:focus { border-color:#8d7bff; }
+  .modal .btns { display:flex; gap:10px; margin-top:14px; }
+  .modal button {
+    flex:1; padding:12px; border:none; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .modal .save { background:linear-gradient(135deg,#a24bff,#5b6bff); color:#fff; }
+  .modal .cancel { background:rgba(255,255,255,0.1); color:#cfc6f7; }
+  .modal .hint { font-size:11px; color:#8078a8; margin-top:10px; text-align:center; }
+</style>
+</head>
+<body>
+  <h1>比赛对战图</h1>
+  <div class="sub">双败赛制 · 12 支队伍 · 四强三方循环</div>
+  <div class="toolbar">
+    <span id="roleLabel">观众模式</span> ·
+    <span class="role" id="roleToggle">切换裁判模式</span> ·
+    <span class="role" id="refreshBtn">刷新</span>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div id="app"></div>
+
+  <!-- 队伍详情弹窗 -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2 id="mTitle">队伍</h2>
+      <div class="grp" id="mGrp"></div>
+      <ul id="mMembers"></ul>
+      <div id="mEdit">
+        <label>战队名字（大家都能看到）</label>
+        <input type="text" id="mNameInput" maxlength="16" placeholder="给你的队伍起个名~">
+        <div class="btns">
+          <button class="cancel" id="mCancel">关闭</button>
+          <button class="save" id="mSave">保存队名</button>
+        </div>
+        <div class="hint">任何人都能改本队队名，请友好使用~</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ===== 配置 =====
+const SB_URL = "https://hdcdutjlkwfaqjgewaid.supabase.co";
+const SB_KEY = "sb_publishable_27LcCyW8osvSIhV5wkSUIA_FdDqY3C6";
+const REST = SB_URL + "/rest/v1";
+const H = { "apikey":SB_KEY, "Authorization":"Bearer "+SB_KEY, "Content-Type":"application/json" };
+const JUDGE_PIN = "8888"; // 裁判密码
+
+// ===== 赛程结构（数据驱动）=====
+// slot: 队伍占位。fixed=固定组号; from=从某场的winner/loser来
+// 12队双败 -> 四强剩3队三循环 -> 前2进决赛
+const MATCHES = [
+  // 胜者组 R1（6场）
+  {id:"WB1-1", sec:"WB1", a:{fixed:1},  b:{fixed:2}},
+  {id:"WB1-2", sec:"WB1", a:{fixed:3},  b:{fixed:4}},
+  {id:"WB1-3", sec:"WB1", a:{fixed:5},  b:{fixed:6}},
+  {id:"WB1-4", sec:"WB1", a:{fixed:7},  b:{fixed:8}},
+  {id:"WB1-5", sec:"WB1", a:{fixed:9},  b:{fixed:10}},
+  {id:"WB1-6", sec:"WB1", a:{fixed:11}, b:{fixed:12}},
+  // 胜者组 R2（3场：胜者两两碰）
+  {id:"WB2-1", sec:"WB2", a:{from:"WB1-1",r:"W"}, b:{from:"WB1-2",r:"W"}},
+  {id:"WB2-2", sec:"WB2", a:{from:"WB1-3",r:"W"}, b:{from:"WB1-4",r:"W"}},
+  {id:"WB2-3", sec:"WB2", a:{from:"WB1-5",r:"W"}, b:{from:"WB1-6",r:"W"}},
+  // 胜者组 R3（3队里先打1场，另1队轮空到收口）
+  {id:"WB3-1", sec:"WB3", a:{from:"WB2-1",r:"W"}, b:{from:"WB2-2",r:"W"}},
+  //  (WB2-3 的胜者 = 胜者组直接进四强 的1号种子)
+
+  // 败者组：接住所有 WB 输家，逐轮淘汰到剩1支
+  // LB R1（3场：WB1的6个败者两两打）
+  {id:"LB1-1", sec:"LB1", a:{from:"WB1-1",r:"L"}, b:{from:"WB1-2",r:"L"}},
+  {id:"LB1-2", sec:"LB1", a:{from:"WB1-3",r:"L"}, b:{from:"WB1-4",r:"L"}},
+  {id:"LB1-3", sec:"LB1", a:{from:"WB1-5",r:"L"}, b:{from:"WB1-6",r:"L"}},
+  // LB R2（LB1胜者 vs WB2败者）
+  {id:"LB2-1", sec:"LB2", a:{from:"LB1-1",r:"W"}, b:{from:"WB2-1",r:"L"}},
+  {id:"LB2-2", sec:"LB2", a:{from:"LB1-2",r:"W"}, b:{from:"WB2-2",r:"L"}},
+  {id:"LB2-3", sec:"LB2", a:{from:"LB1-3",r:"W"}, b:{from:"WB2-3",r:"L"}},
+  // LB R3（LB2三胜者里两两打1场，1队轮空）
+  {id:"LB3-1", sec:"LB3", a:{from:"LB2-1",r:"W"}, b:{from:"LB2-2",r:"W"}},
+  // LB R4（LB3胜者 vs LB2-3胜者 vs WB3-1败者……收成1支）
+  {id:"LB4-1", sec:"LB4", a:{from:"LB3-1",r:"W"}, b:{from:"LB2-3",r:"W"}},
+  {id:"LB5-1", sec:"LB5", a:{from:"LB4-1",r:"W"}, b:{from:"WB3-1",r:"L"}},
+];
+
+// 四强三队 = 这三个来源
+const SEMI_SOURCES = [
+  {from:"WB2-3", r:"W", tag:"胜者组"},   // 胜者组直通
+  {from:"WB3-1", r:"W", tag:"胜者组"},   // 胜者组
+  {from:"LB5-1", r:"W", tag:"败者组"},   // 败者组王者
+];
+// 三循环3场
+const RR = [
+  {id:"RR-1", sec:"RR", ai:0, bi:1},
+  {id:"RR-2", sec:"RR", ai:0, bi:2},
+  {id:"RR-3", sec:"RR", ai:1, bi:2},
+];
+// 决赛（前2名，手动摆位）
+const FINAL = {id:"FINAL", sec:"FINAL"};
+
+// ===== 状态 =====
+let TEAMS = {};    // group_no -> team_name
+let RESULTS = {};  // match_id -> {winner, score_a, score_b}
+let MEMBERS = {};  // group_no -> [names]
+let isJudge = false;
+
+const $ = id => document.getElementById(id);
+function setStatus(t,c){ const s=$("status"); s.textContent=t||""; s.className="status "+(c||""); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+function teamName(g){ return (TEAMS[g] && TEAMS[g].trim()) ? TEAMS[g] : ("第"+g+"组"); }
+
+// 解析某个 slot 当前是哪个组（顺着结果链往上算）
+function resolveSlot(slot){
+  if(!slot) return null;
+  if(slot.fixed!=null) return slot.fixed;
+  if(slot.from){
+    const res = RESULTS[slot.from];
+    if(!res || res.winner==null) return null;
+    const m = MATCHES.find(x=>x.id===slot.from) || (FINAL.id===slot.from?FINAL:null);
+    // 找出这场的两个组
+    const ga = m?resolveSlot(m.a):null, gb = m?resolveSlot(m.b):null;
+    if(ga==null||gb==null) return null;
+    if(slot.r==="W") return res.winner;
+    if(slot.r==="L") return (res.winner===ga)?gb:ga;
+  }
+  return null;
+}
+
+// 四强三队
+function semiTeams(){
+  return SEMI_SOURCES.map(s=>{
+    const res=RESULTS[s.from];
+    if(!res||res.winner==null) return null;
+    return res.winner;
+  });
+}
+
+// 三循环积分
+function rrStandings(){
+  const semis = semiTeams();
+  const valid = semis.filter(x=>x!=null);
+  const pts = {}; valid.forEach(g=>pts[g]={g, w:0, l:0});
+  RR.forEach(m=>{
+    const res=RESULTS[m.id];
+    const ga=semis[m.ai], gb=semis[m.bi];
+    if(res&&res.winner!=null&&ga!=null&&gb!=null){
+      const lo=(res.winner===ga)?gb:ga;
+      if(pts[res.winner]) pts[res.winner].w++;
+      if(pts[lo]) pts[lo].l++;
+    }
+  });
+  return Object.values(pts).sort((a,b)=> b.w-a.w || a.l-b.l);
+}
+
+// ===== 渲染 =====
+function matchHtml(m, ga, gb){
+  const res = RESULTS[m.id] || {};
+  const win = res.winner;
+  function row(g, side){
+    if(g==null) return `<div class="team tbd"><span class="nm">待定</span><span class="sc">-</span></div>`;
+    const cls = win!=null ? (win===g?"win":"lose") : "";
+    const sc = (side==="a"?res.score_a:res.score_b);
+    return `<div class="team ${cls}" data-group="${g}"><span class="nm">${esc(teamName(g))}</span><span class="sc">${sc!=null?sc:""}</span></div>`;
+  }
+  let btns="";
+  if(isJudge && ga!=null && gb!=null){
+    btns = `<div class="win-btn" data-mid="${m.id}" data-win="${ga}">${esc(teamName(ga))} 胜</div>
+            <div class="win-btn" data-mid="${m.id}" data-win="${gb}">${esc(teamName(gb))} 胜</div>`;
+  }
+  return `<div class="match"><div class="mid">${m.id}</div>${row(ga,"a")}${row(gb,"b")}${btns}</div>`;
+}
+
+function colHtml(title, ids){
+  const inner = ids.map(id=>{
+    const m = MATCHES.find(x=>x.id===id);
+    return matchHtml(m, resolveSlot(m.a), resolveSlot(m.b));
+  }).join("");
+  return `<div class="col"><div class="col-title">${title}</div>${inner}</div>`;
+}
+
+function render(){
+  let html = "";
+
+  // 胜者组
+  html += `<div class="section-label">胜者组 Winners Bracket</div>`;
+  html += `<div class="scroll"><div class="bracket">`;
+  html += colHtml("第一轮", ["WB1-1","WB1-2","WB1-3","WB1-4","WB1-5","WB1-6"]);
+  html += colHtml("第二轮", ["WB2-1","WB2-2","WB2-3"]);
+  html += colHtml("第三轮", ["WB3-1"]);
+  html += `</div></div>`;
+
+  // 败者组
+  html += `<div class="section-label lb">败者组 Losers Bracket</div>`;
+  html += `<div class="scroll"><div class="bracket">`;
+  html += colHtml("败1", ["LB1-1","LB1-2","LB1-3"]);
+  html += colHtml("败2", ["LB2-1","LB2-2","LB2-3"]);
+  html += colHtml("败3", ["LB3-1"]);
+  html += colHtml("败4", ["LB4-1"]);
+  html += colHtml("败5", ["LB5-1"]);
+  html += `</div></div>`;
+
+  // 四强三循环
+  html += `<div class="section-label rr">四强 · 三队循环赛</div>`;
+  const semis = semiTeams();
+  html += `<div class="scroll"><div class="rr-wrap">`;
+  // 三场
+  html += `<div class="col">` + RR.map(m=>{
+    const ga=semis[m.ai], gb=semis[m.bi];
+    return matchHtml(m, ga, gb);
+  }).join("") + `</div>`;
+  // 积分榜
+  const st = rrStandings();
+  let rows = st.map((r,i)=>`<tr class="${i<2?'qual':''}"><td>${i+1}</td><td>${esc(teamName(r.g))}</td><td>${r.w}</td><td>${r.l}</td></tr>`).join("");
+  if(!rows) rows = `<tr><td colspan="4" style="color:#6d648f">等胜者组/败者组打完产生三强…</td></tr>`;
+  html += `<div class="rr-standings"><h3>循环赛积分（前2晋级，平分你现场裁定）</h3>
+    <table><tr><th>#</th><th>队伍</th><th>胜</th><th>负</th></tr>${rows}</table></div>`;
+  html += `</div></div>`;
+
+  // 决赛
+  html += `<div class="section-label final">总决赛</div>`;
+  html += `<div class="scroll"><div class="bracket">`;
+  const fga = FINAL_A(), fgb = FINAL_B();
+  html += `<div class="col">${matchHtml(FINAL, fga, fgb)}</div>`;
+  const champ = (RESULTS["FINAL"]&&RESULTS["FINAL"].winner!=null)?RESULTS["FINAL"].winner:null;
+  if(champ!=null){
+    html += `<div class="col"><div class="col-title">冠军</div>
+      <div class="match"><div class="team win"><span class="nm">🏆 ${esc(teamName(champ))}</span></div></div></div>`;
+  }
+  html += `</div></div>`;
+
+  $("app").innerHTML = html;
+}
+
+// 决赛两个位置 = 循环赛前2名
+function FINAL_A(){ const st=rrStandings(); return st[0]?st[0].g:null; }
+function FINAL_B(){ const st=rrStandings(); return st[1]?st[1].g:null; }
+
+// FINAL 的 a/b 解析（供 resolveSlot 处理 from:FINAL 时用）
+FINAL.a = { get fixed(){ return FINAL_A(); } };
+FINAL.b = { get fixed(){ return FINAL_B(); } };
+
+// ===== 交互 =====
+document.addEventListener("click", async (e)=>{
+  // 点胜负按钮（裁判）
+  const wb = e.target.closest(".win-btn");
+  if(wb){
+    const mid = wb.dataset.mid, winner = parseInt(wb.dataset.win,10);
+    await recordWin(mid, winner);
+    return;
+  }
+  // 点队伍 -> 详情
+  const tm = e.target.closest(".team");
+  if(tm && tm.dataset.group){
+    openTeam(parseInt(tm.dataset.group,10));
+    return;
+  }
+});
+
+// 决赛特殊：需要能点决赛胜负。决赛队伍来自积分前2
+// 给决赛也加胜负按钮：在 render 里 matchHtml(FINAL,...) 已含（isJudge且两队都定）
+
+async function recordWin(mid, winner){
+  const prev = RESULTS[mid] || {score_a:0, score_b:0};
+  const body = { match_id:mid, winner:winner, score_a:prev.score_a||0, score_b:prev.score_b||0, updated_at:new Date().toISOString() };
+  try{
+    // upsert
+    const r = await fetch(REST+"/matches", {
+      method:"POST",
+      headers:Object.assign({},H,{"Prefer":"resolution=merge-duplicates,return=representation"}),
+      body:JSON.stringify(body)
+    });
+    if(!r.ok){ setStatus("记分失败 "+r.status,"err"); return; }
+    RESULTS[mid] = {winner, score_a:body.score_a, score_b:body.score_b};
+    setStatus("已记录：本场胜者 "+teamName(winner),"ok");
+    render();
+  }catch(err){ setStatus("网络错误："+err.message,"err"); }
+}
+
+// ===== 弹窗：队伍详情 + 改队名 =====
+let editingGroup = null;
+function openTeam(g){
+  editingGroup = g;
+  $("mTitle").textContent = teamName(g);
+  $("mGrp").textContent = "第 "+g+" 组 · 5 名成员";
+  const mem = MEMBERS[g] || [];
+  $("mMembers").innerHTML = mem.length ? mem.map(n=>`<li>${esc(n)}</li>`).join("") : `<li style="color:#6d648f">名单加载中…</li>`;
+  $("mNameInput").value = TEAMS[g] || "";
+  $("overlay").classList.add("show");
+}
+$("mCancel").addEventListener("click", ()=> $("overlay").classList.remove("show"));
+$("overlay").addEventListener("click", e=>{ if(e.target.id==="overlay") $("overlay").classList.remove("show"); });
+$("mSave").addEventListener("click", async ()=>{
+  const g = editingGroup, nm = $("mNameInput").value.trim();
+  try{
+    const r = await fetch(REST+"/teams", {
+      method:"POST",
+      headers:Object.assign({},H,{"Prefer":"resolution=merge-duplicates,return=representation"}),
+      body:JSON.stringify({group_no:g, team_name:nm})
+    });
+    if(!r.ok){ setStatus("保存队名失败 "+r.status,"err"); return; }
+    TEAMS[g] = nm;
+    setStatus("队名已保存~","ok");
+    $("overlay").classList.remove("show");
+    render();
+  }catch(err){ setStatus("网络错误："+err.message,"err"); }
+});
+
+// ===== 裁判模式 =====
+$("roleToggle").addEventListener("click", ()=>{
+  if(isJudge){ isJudge=false; updateRole(); render(); return; }
+  const pin = prompt("请输入裁判密码：");
+  if(pin===JUDGE_PIN){ isJudge=true; updateRole(); render(); setStatus("已进入裁判模式，可点「XX胜」记分","ok"); }
+  else if(pin!=null){ setStatus("密码不对哦","err"); }
+});
+function updateRole(){
+  $("roleLabel").textContent = isJudge ? "裁判模式（可记分）" : "观众模式";
+  $("roleToggle").textContent = isJudge ? "退出裁判模式" : "切换裁判模式";
+}
+
+// ===== 数据 =====
+async function loadAll(){
+  // 队名
+  const t = await fetch(REST+"/teams?select=group_no,team_name", {headers:H, cache:"no-store"});
+  if(t.ok){ TEAMS={}; (await t.json()).forEach(x=> TEAMS[x.group_no]=x.team_name); }
+  // 比分
+  const m = await fetch(REST+"/matches?select=match_id,winner,score_a,score_b", {headers:H, cache:"no-store"});
+  if(m.ok){ RESULTS={}; (await m.json()).forEach(x=> RESULTS[x.match_id]={winner:x.winner,score_a:x.score_a,score_b:x.score_b}); }
+  // 成员（从 draws 读，只取1~12组）
+  const d = await fetch(REST+"/draws?select=name,group_no&group_no=lte.12&order=group_no.asc,created_at.asc", {headers:H, cache:"no-store"});
+  if(d.ok){ MEMBERS={}; (await d.json()).forEach(x=>{ (MEMBERS[x.group_no]=MEMBERS[x.group_no]||[]).push(x.name); }); }
+}
+
+$("refreshBtn").addEventListener("click", async ()=>{
+  setStatus("刷新中…");
+  try{ await loadAll(); render(); setStatus("已更新","ok"); }catch(e){ setStatus("刷新失败："+e.message,"err"); }
+});
+
+(async function init(){
+  updateRole();
+  try{ await loadAll(); render(); }
+  catch(e){ setStatus("连接失败："+e.message,"err"); }
+  // 每 5 秒同步（编辑弹窗打开时不刷，免得打断输入）
+  setInterval(async ()=>{
+    if($("overlay").classList.contains("show")) return;
+    try{ await loadAll(); render(); }catch(e){}
+  }, 5000);
+})();
+</script>
+</body>
+</html>
