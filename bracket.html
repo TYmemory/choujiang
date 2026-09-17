@@ -69,6 +69,13 @@
   }
   .win-btn:hover { background:rgba(162,75,255,0.45); }
 
+  .undo-btn {
+    display:block; text-align:center; font-size:11px; padding:5px;
+    background:rgba(255,95,158,0.22); color:#ffc4d8; cursor:pointer; user-select:none;
+    border-top:1px solid rgba(255,255,255,0.08);
+  }
+  .undo-btn:hover { background:rgba(255,95,158,0.4); }
+
   .rr-wrap { display:flex; flex-wrap:wrap; gap:14px; }
   .rr-standings {
     background:rgba(255,216,107,0.06); border:1px solid rgba(255,216,107,0.3);
@@ -259,8 +266,13 @@ function matchHtml(mid, title){
   }
   let btns="";
   if(isJudge && ga!=null && gb!=null){
-    btns = `<div class="win-btn" data-mid="${mid}" data-win="${ga}">${esc(teamName(ga))} 胜</div>
-            <div class="win-btn" data-mid="${mid}" data-win="${gb}">${esc(teamName(gb))} 胜</div>`;
+    if(win!=null){
+      // 已判过胜负 -> 显示撤销
+      btns = `<div class="undo-btn" data-mid="${mid}">↩ 撤销本场（选错了点这里）</div>`;
+    } else {
+      btns = `<div class="win-btn" data-mid="${mid}" data-win="${ga}">${esc(teamName(ga))} 胜</div>
+              <div class="win-btn" data-mid="${mid}" data-win="${gb}">${esc(teamName(gb))} 胜</div>`;
+    }
   }
   return `<div class="match"><div class="mid">${title||mid}</div>${row(ga,"a")}${row(gb,"b")}${btns}</div>`;
 }
@@ -379,8 +391,25 @@ async function recordWin(mid, winner){
   }catch(e){ setStatus("网络错误："+e.message,"err"); }
 }
 
+// ===== 撤销本场 =====
+async function undoMatch(mid){
+  const cur = RESULTS[mid];
+  if(!cur || cur.winner==null){ setStatus("这场还没结果，无需撤销"); return; }
+  const won = teamName(cur.winner);
+  if(!confirm("确定撤销「"+ (mid) +"」这场结果吗？\n（原胜者："+won+"，撤销后本场回到未决，后续依赖它的对阵也会回退到待定）")) return;
+  try{
+    const r = await fetch(REST+"/matches?match_id=eq."+encodeURIComponent(mid), {method:"DELETE", headers:H});
+    if(!r.ok){ setStatus("撤销失败 "+r.status,"err"); return; }
+    delete RESULTS[mid];
+    setStatus("已撤销 "+mid+"，可以重新点胜负了","ok");
+    render();
+  }catch(e){ setStatus("网络错误："+e.message,"err"); }
+}
+
 // ===== 点击 =====
 document.addEventListener("click", async e=>{
+  const ub = e.target.closest(".undo-btn");
+  if(ub){ await undoMatch(ub.dataset.mid); return; }
   const wb = e.target.closest(".win-btn");
   if(wb){ await recordWin(wb.dataset.mid, parseInt(wb.dataset.win,10)); return; }
 
